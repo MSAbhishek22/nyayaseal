@@ -2,26 +2,27 @@
   "backend_api_url": null,
   "build_deployment_id": null,
   "database_migration_version": null,
-  "deployed_commit_sha": null,
-  "deployment_blocker": "Live deployment exists (https://nyayaseal.vercel.app, snapshot 1) but its seal-then-verify flow FAILED live (NOT FOUND cross-instance). Stateless fix is snapshot 2 — live re-check must pass before Gate E is PASS.",
-  "deployment_provider": "Vercel Hobby (deployed; snapshot 1 commit 1a7eb05b)",
-  "deployment_timestamp_ist": null,
-  "deployment_timestamp_utc": null,
+  "deployed_commit_sha": "b5d59ab5784f17864582460d411383889a15b397",
+  "deployment_blocker": null,
+  "deployment_provider": "Vercel Hobby (live; snapshot 2 commit b5d59ab5)",
+  "deployment_timestamp_ist": "2026-11-10T11:16:48+05:30",
+  "deployment_timestamp_utc": "2026-11-10T05:46:48Z",
   "github_repository_url": "https://github.com/MSAbhishek22/nyayaseal",
   "latest_repo_commit_sha": "1a7eb05ba5333d5b7675e0d62b9d0131e083905b",
   "notes": [
-    "Repo MSAbhishek22/nyayaseal created 10 Nov 2026 via browser (empty, public); snapshot 1 pushed, head 1a7eb05ba5333d5b7675e0d62b9d0131e083905b, verified via list_commits.",
+    "Repo MSAbhishek22/nyayaseal created 10 Nov 2026 via browser (empty, public); snapshot 1 pushed (1a7eb05b), snapshot 2 pushed (b5d59ab5), both verified via list_commits.",
     "LIVE BUG found 10 Nov ~11:04 IST: seal-then-verify returned NOT FOUND on the live site — per-instance /tmp register; the \"same warm instance\" assumption was WRONG.",
-    "STATELESS FIX (snapshot 2, 10 Nov 2026): verify() compares SHA-256 of supplied content vs claimed blob id — no server storage needed; register is a secondary signal only (verification_basis / registered_in_this_vault / registry_note on every verdict); verify_hash() labelled registry-only; tamper_demo() accepts supplied bytes. Unit tests 24/24 PASS (7 new cross-instance), WSGI harness 14/14 PASS, fresh-instance WSGI simulation correct.",
-    "deployed_commit_sha is still the snapshot-1 SHA until snapshot 2 is pushed and Vercel auto-deploys; live re-check (home 200, seal, same-content verify AUTHENTIC, tampered TAMPERED, unknown hash NOT FOUND, chain OK) must pass before Gate E is PASS.",
+    "STATELESS FIX (snapshot 2, 10 Nov 2026): verify() compares SHA-256 of supplied content vs claimed blob id — no server storage needed; register is a secondary signal only (verification_basis / registered_in_this_vault / registry_note on every verdict); verify_hash() labelled registry-only; tamper_demo() accepts supplied bytes. Unit tests 24/24 PASS (7 new cross-instance), WSGI harness 14/14 PASS.",
+    "LIVE RE-CHECK PASSED 10 Nov ~11:16-11:18 IST on https://nyayaseal.vercel.app (snapshot 2): home 200 + verify-text field present; seal -> blob 813acc5c...; verify same content + blob id -> AUTHENTIC (basis content-hash); tampered content -> TAMPERED; unknown hash -> NOT FOUND; tamper demo (sample doc) -> TAMPERED; audit chain ok (checked 9). Honest caveat: the 5 repeat live verifies all landed on the warm instance (registered_in_this_vault True); direct live cross-instance observation was not obtained — cross-instance correctness is proven by the 7 unit tests (second Vault, different temp dir) + the WSGI fresh-instance simulation (data dir wiped between seal and verify).",
     "Vercel serverless caveat: vault/register/audit are per-instance and ephemeral; a cold instance starts with only the 3 seeded SAMPLE documents. Verification no longer depends on that.",
-    "Walrus testnet NOT connected: backend is local-vault everywhere; no Walrus blob id is ever faked."
+    "Walrus testnet NOT connected: backend is local-vault everywhere; no Walrus blob id is ever faked.",
+    "Snapshot 3 (this manifest + release card only, docs-only): application code identical to b5d59ab5; live site re-verified after snapshot 3 auto-deploy (see parent report)."
   ],
   "production_branch": "main",
   "production_url": "https://nyayaseal.vercel.app",
   "project": "NyayaSeal",
   "release_status": "IN_PROGRESS",
-  "release_version": null,
+  "release_version": "snapshot-2-stateless-verify-fix",
   "smoke_test": {
     "local_only_evidence": {
       "date": "2026-11-10",
@@ -31,7 +32,18 @@
       "unit_tests": "24/24 PASS (python3 -m unittest discover -s tests) — 17 + 7 new stateless cross-instance tests",
       "vercel_wsgi_harness": "14/14 PASS (/tmp/nyayaseal-wsgi-test.py against api/index.py) + fresh-instance simulation (data dir wiped between seal and verify): AUTHENTIC / TAMPERED / NOT FOUND correct"
     },
-    "production_smoke_test": null,
-    "production_smoke_test_timestamp": null
+    "production_smoke_test": {
+      "date_ist": "2026-11-10 ~11:16-11:18",
+      "url": "https://nyayaseal.vercel.app",
+      "home": "HTTP 200, contains NyayaSeal, verify-text field present",
+      "seal": "POST /api/seal JSON -> blob 813acc5ca6e9e77ab13629770576576088a18f4a3fbb7c89860774b87cb81d82",
+      "verify_same_content": "AUTHENTIC (basis content-hash)",
+      "verify_tampered": "TAMPERED (basis content-hash)",
+      "verify_unknown_hash": "NOT FOUND (basis registry-only)",
+      "tamper_demo_sample": "TAMPERED",
+      "audit_chain": "ok True, checked 9",
+      "caveat": "Repeat live verifies landed on the warm instance (registered True); cross-instance proof is unit tests + WSGI fresh-instance simulation, not a live cross-instance observation."
+    },
+    "production_smoke_test_timestamp": "2026-11-10T05:46:48Z"
   }
 }

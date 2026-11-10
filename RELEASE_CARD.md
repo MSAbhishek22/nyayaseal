@@ -3,8 +3,10 @@
 **Date:** 10 Nov 2026 · **Status: IN_PROGRESS** (NOT complete — Gates E, F, G are BLOCKED, see below)
 **Live fix 10 Nov 2026:** the deployed site's seal→verify flow was BROKEN live
 (seal on one serverless instance, verify on another → NOT FOUND). Fixed with a
-stateless content-hash verify (see "Live fix" section below); live re-check
-pending after snapshot 2 is pushed and Vercel auto-deploys.
+stateless content-hash verify (see "Live fix" section below) and **verified live
+~11:16–11:18 IST: home 200, seal → blob, same-content verify AUTHENTIC, tampered
+TAMPERED, unknown hash NOT FOUND, tamper demo TAMPERED, chain OK. Gate E is now
+PASS.** Gates F (demo video) and G (DeepSurge submit) remain BLOCKED.
 **Hackathon:** Walrus Haulout Hackathon (Sui/Walrus, DeepSurge) — $105,000 prize pool,
 Truth Engine + Trust Oracle track. Closes **Mon 23 Nov 2026**. Solo, online, free.
 **Builder:** M S Abhishek (solo) · **Project folder:** `~/workspace/hackathons/walrus-haulout/`
@@ -35,7 +37,7 @@ NOT reused), PollPulse (Glassmorphism) and CageCheck. See
 |---|---|
 | Project identity | This card + `README.md` |
 | Research | `design/DESIGN_CONSTITUTION.md` — 5 real references, inspected 10 Nov 2026 (Proof/Notarize, Walrus Docs, Linear, NYT design system doc, three.js) |
-| Live application | **DEPLOYED — https://nyayaseal.vercel.app (Vercel Hobby, project nyayaseal, snapshot-1 commit 1a7eb05b) — BUT seal→verify was BROKEN live (NOT FOUND cross-instance); stateless fix applied 10 Nov, live re-check pending after snapshot 2** |
+| Live application | **LIVE + VERIFIED — https://nyayaseal.vercel.app (Vercel Hobby, project nyayaseal, snapshot 2 commit `b5d59ab5`) — live re-check passed 10 Nov ~11:16–11:18 IST (see manifest). Seal→verify was BROKEN on snapshot 1; fixed by the stateless verify** |
 | GitHub | **https://github.com/MSAbhishek22/nyayaseal — public; snapshot 1 pushed 10 Nov, head `1a7eb05ba5333d5b7675e0d62b9d0131e083905b` (verified via `list_commits`)** |
 | Deployment | **Vercel Hobby; manifest written (fix notes, live URL, re-check pending)** |
 | UI quality | Design constitution + registry comparison, both PASS; QA screenshots at 1280/768/390 in `/tmp/nyayaseal-qa/shots/` (QA evidence, not a deliverable) |
@@ -110,14 +112,14 @@ instance") was WRONG live, even for an immediate verify.
 | B — Functional product | **PASS** (48 controls inventoried; post-QA fixes + stateless fix applied, 24/24 tests) |
 | C — 3D and visual quality | **PASS** (CSS-3D vault live; 2D fallback render BLOCKED — observation limit, code-inspected) |
 | D — QA | **PASS** (24/24 unit; WSGI 14/14; local cross-instance smoke; responsive 1280/768/390; reduced-motion; keyboard focus; known issues in QA report + post-QA fixes) |
-| E — GitHub and deployment | **IN PROGRESS** (repo pushed, head `1a7eb05b`; live deploy Ready at https://nyayaseal.vercel.app; seal→verify flow FAILED live, stateless fix in snapshot 2 — Gate E PASS only after the live re-check passes) |
+| E — GitHub and deployment | **PASS** (repo pushed, snapshot 2 head `b5d59ab5`; live deploy at https://nyayaseal.vercel.app re-checked 10 Nov ~11:16–11:18 IST: home 200, seal → blob, same-content verify AUTHENTIC, tampered TAMPERED, unknown hash NOT FOUND, tamper demo TAMPERED, chain OK — see `deployment/RELEASE_MANIFEST.json`. Honest caveat: repeat live verifies landed on the warm instance; cross-instance proof is unit tests + WSGI simulation) |
 | F — Demo video | **BLOCKED** (needs a verified live deployment first) |
 | G — Final handoff | **BLOCKED** (depends on E + F + user approval to submit) |
 
 ## Final status summary
 
-- `LIVE_DEPLOYMENT`: **BLOCKED**
-- `GITHUB_COMMIT_MATCH`: **BLOCKED**
+- `LIVE_DEPLOYMENT`: **PASS** (https://nyayaseal.vercel.app, snapshot 2, live re-check passed 10 Nov ~11:16–11:18 IST)
+- `GITHUB_COMMIT_MATCH`: **PASS** (repo head `b5d59ab5` = deployed snapshot 2 code; snapshot 3 is docs-only with identical app code)
 - `ALL_VISIBLE_CONTROLS`: **PASS** (post-QA fixes; 5 inventory rows remain BLOCKED only as headless-observation limits — native file-picker dialog + `.no3d` fallback render)
 - `3D_EXPERIENCE`: **PASS**
 - `UI_DISTINCTIVENESS`: **PASS**
