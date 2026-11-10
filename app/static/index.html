@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NyayaSeal — Provably authentic legal documents</title>
+<meta name="description" content="Seal a legal document by its content hash, verify it in one click, and audit every step. Hash = address.">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<nav class="top" aria-label="Sections">
+  <div class="inner">
+    <a href="#seal">Seal</a><a href="#verify">Verify</a><a href="#vault">The vault</a>
+    <a href="#audit">Audit trail</a><a href="#how">How it works</a>
+    <span class="spacer"></span>
+    <span class="badge" id="backend-badge" title="Backend status">loading…</span>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="kicker">
+    <span>Walrus Haulout Hackathon · Truth Engine + Trust Oracle · $105,000</span>
+    <span>Solo · Online · Closes Mon 23 Nov 2026</span>
+  </div>
+  <h1>Nyaya<span class="grad">Seal</span></h1>
+  <p class="lede">A legal document you can prove is real — sealed by its own content hash, verified in one click.</p>
+  <p class="disclaimer">General legal information, not legal advice. The hash of a document <em>is</em> its address:
+  change one character and the address changes, so a tampered copy can never pass as the original.
+  Today the vault runs on a real local content-addressed store; the Walrus testnet adapter is a stub
+  (storing needs a funded SUI wallet — see § How it works).</p>
+  <div class="hero-stats" aria-label="Vault at a glance">
+    <div class="stat"><b id="stat-docs">…</b><span>documents sealed</span></div>
+    <div class="stat"><b id="stat-verifies">…</b><span>verifications logged</span></div>
+    <div class="stat"><b id="stat-chain">…</b><span>audit chain</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- 01 SEAL -->
+  <section class="rv" id="seal">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Seal a document</h2>
+    <p>Upload a file (any type, ≤ 2 MB) or paste document text. The server hashes the exact bytes,
+    stores them at that hash, and records the seal. Nothing leaves this machine.</p></div>
+    <div class="grid2">
+      <div class="card">
+        <label id="drop-label" for="seal-file">Upload a file</label>
+        <div class="dropzone" id="dropzone" tabindex="0" role="button"
+             aria-labelledby="drop-label">
+          <input type="file" id="seal-file" aria-label="Choose a file to seal">
+          <p><strong>Drop a file here</strong> or click to choose one.<br>
+          <span class="hint">Any file type · max 2 MB · hashed exactly as uploaded.</span></p>
+          <p id="seal-file-name" class="mono" aria-live="polite"></p>
+        </div>
+        <p class="hint">— or —</p>
+        <label for="seal-text">Paste document text</label>
+        <textarea id="seal-text" placeholder="Paste the document text here…"></textarea>
+      </div>
+      <div class="card">
+        <label for="seal-title">Title</label>
+        <input type="text" id="seal-title" maxlength="200"
+               placeholder="e.g. Freelance Services Agreement — Acme / Abhishek">
+        <label for="seal-type">Document type</label>
+        <select id="seal-type">
+          <option>Contract</option><option>Affidavit</option>
+          <option>Power of Attorney</option><option>Settlement Deed</option>
+          <option>Legal Notice</option><option>Other</option>
+        </select>
+        <label for="seal-issuer">Issuer name</label>
+        <input type="text" id="seal-issuer" placeholder="e.g. Acme Pvt Ltd">
+        <button class="btn" id="seal-btn">Seal document</button>
+        <button class="btn secondary" id="seal-clear" type="button">Clear form</button>
+        <div id="seal-out" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 VERIFY -->
+  <section class="rv" id="verify">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Verify authenticity</h2>
+    <p>Upload the file you want to check, paste its 64-character blob id, or both.
+    The server re-hashes the bytes and compares them with the sealed record.</p></div>
+    <div class="grid2">
+      <div class="card">
+        <label for="verify-file">Upload a file to check</label>
+        <div class="dropzone" id="verify-dropzone" tabindex="0" role="button"
+             aria-label="Drop a file to verify, or click to choose one">
+          <input type="file" id="verify-file" aria-label="Choose a file to verify">
+          <p><strong>Drop a file here</strong> or click to choose one.</p>
+          <p id="verify-file-name" class="mono" aria-live="polite"></p>
+        </div>
+        <label for="verify-hash">…or paste a blob id / SHA-256 hash</label>
+        <input type="text" id="verify-hash" class="mono" maxlength="64"
+               placeholder="64 hex characters, e.g. 9f86d081…">
+        <button class="btn" id="verify-btn">Verify now</button>
+        <button class="btn secondary" id="verify-clear" type="button">Clear</button>
+      </div>
+      <div class="card">
+        <h3>Verdict</h3>
+        <div id="verify-out" aria-live="polite">
+          <p class="hint">No verification yet. Upload a file or paste a hash and press “Verify now”.</p>
+        </div>
+        <h3 style="margin-top:20px">Tamper demo</h3>
+        <p class="hint">Takes a sealed sample document, flips exactly one character, and runs the
+        check — watch a genuine hash mismatch produce a TAMPERED verdict.</p>
+        <label for="tamper-select">Sealed document to tamper</label>
+        <select id="tamper-select"><option value="">Loading sealed documents…</option></select>
+        <button class="btn danger" id="tamper-btn">Run tamper demo</button>
+        <div id="tamper-out" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 VAULT + 3D -->
+  <section class="rv" id="vault">
+    <div class="sec-head"><span class="sec-num">03</span><h2>The vault</h2>
+    <p>Every sealed document, live. Click a row for the full detail. The 3D stack below
+    shows the same real documents — each card is a sealed record, not a mock.</p></div>
+
+    <div class="vault-scene" id="vault-scene" aria-label="3D stack of sealed documents">
+      <div class="vault-stage" id="vault-stage" aria-live="polite">
+        <p class="muted" style="padding:20px">Loading sealed documents…</p>
+      </div>
+    </div>
+    <div class="vault-controls">
+      <button class="btn secondary" id="rot-left" type="button" aria-label="Rotate vault left">⟲ Rotate left</button>
+      <button class="btn secondary" id="rot-right" type="button" aria-label="Rotate vault right">Rotate right ⟳</button>
+      <button class="btn secondary" id="rot-reset" type="button">Reset view</button>
+      <span class="vault-note">Drag the stack to rotate it. Low-motion mode shows a flat grid instead.</span>
+    </div>
+
+    <div class="tablewrap" style="margin-top:20px">
+      <table>
+        <thead><tr><th>Title</th><th>Type</th><th>Issuer</th><th>Sealed (UTC)</th><th>Blob id</th></tr></thead>
+        <tbody id="register-body"><tr><td colspan="5">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div id="detail-out" aria-live="polite" style="margin-top:14px"></div>
+  </section>
+
+  <!-- 04 AUDIT -->
+  <section class="rv" id="audit">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Audit trail</h2>
+    <p>Append-only and hash-chained: every seal and every verification writes one receipt,
+    each receipt hashing the one before it. Re-verify the whole chain in one click.</p></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <button class="btn secondary" id="verify-chain">Verify hash chain</button>
+      <span id="chain-out" class="hint" aria-live="polite"></span>
+    </div>
+    <ul class="audit" id="audit-list"><li>Loading…</li></ul>
+  </section>
+
+  <!-- 05 HOW -->
+  <section class="rv" id="how">
+    <div class="sec-head"><span class="sec-num">05</span><h2>How it works</h2>
+    <p>The hash is the address — the same idea Walrus is built on.</p></div>
+    <div class="steps">
+      <div class="step"><div class="n">01 · SEAL</div>
+        <p><strong>Hash the exact bytes.</strong> SHA-256 of your file is computed; that
+        64-character hash becomes the document's blob id, and the bytes are stored
+        under that id. Same bytes → same id, always.</p></div>
+      <div class="step"><div class="n">02 · VERIFY</div>
+        <p><strong>Re-hash and compare.</strong> Upload a suspect copy: if its hash
+        equals the sealed blob id, it is byte-for-byte the original
+        (<strong>AUTHENTIC</strong>). One flipped character → a totally different hash →
+        <strong>TAMPERED</strong>. An unknown hash → <strong>NOT FOUND</strong>.</p></div>
+      <div class="step"><div class="n">03 · AUDIT</div>
+        <p><strong>Chain every receipt.</strong> Each seal and verify appends a receipt
+        whose hash covers the previous receipt. Alter any entry and the chain
+        check fails at that exact receipt.</p></div>
+    </div>
+    <div class="warnbox" id="walrus-note" style="margin-top:16px">
+      <strong>Walrus status — honest version.</strong>
+      <span id="walrus-note-text">Checking…</span>
+    </div>
+    <p class="hint" style="margin-top:12px">What is real: SHA-256 sealing, content-addressed
+    storage on disk, verify + tamper demo, hash-chained audit log, this UI. What is a stub:
+    the <span class="mono">WalrusTestnetAdapter</span> — storing on Walrus testnet needs a funded
+    SUI wallet and a publisher endpoint; neither exists here, so no Walrus blob id is ever faked.
+    The local store uses the same content-addressing, so swapping adapters later changes
+    where bytes live, not how authenticity works.</p>
+  </section>
+</main>
+
+<footer>
+  NyayaSeal — Walrus Haulout Hackathon, Truth Engine + Trust Oracle track.
+  Built by M S Abhishek (solo). Backend: <span class="mono" id="footer-backend">local-vault</span>.
+  Sample documents are clearly labelled SAMPLE and are general legal information, not legal advice.
+</footer>
+
+<button class="motion-toggle" id="motion-toggle" aria-pressed="false">Low motion: off</button>
+<script src="/static/app.js"></script>
+</body>
+</html>
