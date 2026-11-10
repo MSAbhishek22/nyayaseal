@@ -41,7 +41,7 @@
   <section class="rv" id="seal">
     <div class="sec-head"><span class="sec-num">01</span><h2>Seal a document</h2>
     <p>Upload a file (any type, ≤ 2 MB) or paste document text. The server hashes the exact bytes,
-    stores them at that hash, and records the seal. Nothing leaves this machine.</p></div>
+    stores them at that hash, and records the seal.</p></div>
     <div class="grid2">
       <div class="card">
         <label id="drop-label" for="seal-file">Upload a file</label>
@@ -78,8 +78,10 @@
   <!-- 02 VERIFY -->
   <section class="rv" id="verify">
     <div class="sec-head"><span class="sec-num">02</span><h2>Verify authenticity</h2>
-    <p>Upload the file you want to check, paste its 64-character blob id, or both.
-    The server re-hashes the bytes and compares them with the sealed record.</p></div>
+    <p>Paste the document text (or upload the file) <em>together with</em> its blob id:
+    the server re-hashes the bytes and compares them with the claimed id — that check needs
+    no server storage, so it works on any server instance. A blob id on its own only checks
+    this server instance's register, which is per-instance on serverless.</p></div>
     <div class="grid2">
       <div class="card">
         <label for="verify-file">Upload a file to check</label>
@@ -89,7 +91,10 @@
           <p><strong>Drop a file here</strong> or click to choose one.</p>
           <p id="verify-file-name" class="mono" aria-live="polite"></p>
         </div>
-        <label for="verify-hash">…or paste a blob id / SHA-256 hash</label>
+        <p class="hint">— or —</p>
+        <label for="verify-text">Paste the document text to check</label>
+        <textarea id="verify-text" placeholder="Paste the document text here — with a blob id below, the check is stateless and works on any server instance…"></textarea>
+        <label for="verify-hash">…and / or paste a blob id / SHA-256 hash</label>
         <input type="text" id="verify-hash" class="mono" maxlength="64"
                placeholder="64 hex characters, e.g. 9f86d081…">
         <button class="btn" id="verify-btn">Verify now</button>
@@ -163,7 +168,9 @@
         <p><strong>Re-hash and compare.</strong> Upload a suspect copy: if its hash
         equals the sealed blob id, it is byte-for-byte the original
         (<strong>AUTHENTIC</strong>). One flipped character → a totally different hash →
-        <strong>TAMPERED</strong>. An unknown hash → <strong>NOT FOUND</strong>.</p></div>
+        <strong>TAMPERED</strong>. An unknown hash → <strong>NOT FOUND</strong>. This
+        comparison needs no server lookup, so it works even when the seal happened
+        on a different server instance.</p></div>
       <div class="step"><div class="n">03 · AUDIT</div>
         <p><strong>Chain every receipt.</strong> Each seal and verify appends a receipt
         whose hash covers the previous receipt. Alter any entry and the chain

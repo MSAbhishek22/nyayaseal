@@ -28,6 +28,18 @@ BACKEND_NOTE = (
     "NOT Walrus testnet — see app/walrus_adapter.py for the live-Walrus path."
 )
 
+# Honest serverless caveat (live fix, 10 Nov 2026): on Vercel the register
+# is per-instance and ephemeral — one serverless instance only knows the
+# documents sealed in THAT instance. A verdict must therefore never depend
+# on the register. Every verify result carries this note plus
+# ``verification_basis`` ("content-hash" / "content-hash+registry" /
+# "registry-only") and ``registered_in_this_vault`` (bool).
+REGISTRY_NOTE = (
+    "The sealed-document register is per-instance and ephemeral on serverless: "
+    "this server instance only knows the documents sealed in this instance. "
+    "The verdict comes from the content hash, not the register."
+)
+
 MAX_BYTES = 2 * 1024 * 1024  # 2 MB upload limit
 MAX_TITLE = 200
 MAX_TEXT_CHARS = 200_000  # pasted-text guard (bytes still capped at 2 MB)
@@ -281,12 +293,21 @@ class Vault:
                          issuer=issuer)
 
     def verify(self, data: bytes, expected_blob_id: str | None = None) -> dict:
-        """Verify bytes. With an expected id, a mismatch is TAMPERED.
+        """Verify bytes — STATELESS primary path (live-serverless fix, 10 Nov 2026).
 
+        The verdict comes from the content hash alone, never from the
+        per-instance register:
         - expected given and hash != expected  -> TAMPERED
-        - hash in register                     -> AUTHENTIC
-        - otherwise                            -> NOT FOUND
-        Every verify writes an audit receipt.
+        - expected given and hash == expected  -> AUTHENTIC (the hash IS the
+          address: these bytes are byte-for-byte the document sealed under
+          that id, wherever it was sealed)
+        - no expected and hash in this register -> AUTHENTIC
+        - no expected and hash in no register   -> NOT FOUND
+        The register is only a SECONDARY signal: ``registered_in_this_vault``
+        says whether this server instance also holds a record, and
+        ``registry_note`` says the register is per-instance/ephemeral on
+        serverless. A registry miss is never the verdict.
+        Every verify writes an audit receipt (per-instance on serverless).
         """
         if not data:
             raise VaultError("Nothing to verify — upload a file or paste a hash.")
@@ -299,45 +320,81 @@ class Vault:
             raise VaultError(
                 "That expected blob id is not a valid 64-character hex "
                 "SHA-256 — check for a typo. It was not treated as tampering.")
+        doc = self.documents.get(digest)
+        registered = doc is not None
         if expected and expected != digest:
-            doc = self.documents.get(expected)
+            expected_doc = self.documents.get(expected)
             receipt = self._record(
                 "verify", expected,
                 f"TAMPERED: bytes hash {digest[:16]}… does not match claimed "
                 f"blob id {expected[:16]}…")
             return {"ok": False, "verdict": "TAMPERED", "backend": BACKEND_LABEL,
                     "computed_hash": digest, "expected_blob_id": expected,
-                    "document": doc,
+                    "document": expected_doc,
+                    "verification_basis": "content-hash",
+                    "registered_in_this_vault": registered,
+                    "registry_note": REGISTRY_NOTE,
                     "explanation": (
                         "The file's hash does not match the claimed blob id. "
                         "Even one changed character changes the hash completely, "
                         "so this file is NOT the document that was sealed under "
                         "that id."),
                     "receipt": receipt}
-        doc = self.documents.get(digest)
-        if doc is not None:
+        if expected:
             receipt = self._record(
-                "verify", digest, f"AUTHENTIC: hash matches sealed record: {doc['title']}")
+                "verify", digest,
+                "AUTHENTIC (content-hash): bytes hash equals the claimed blob id"
+                + ("; also in this instance's register" if registered
+                   else "; not in this instance's register (verdict is from the hash, not the register)"))
             return {"ok": True, "verdict": "AUTHENTIC", "backend": BACKEND_LABEL,
                     "computed_hash": digest, "expected_blob_id": expected,
                     "document": doc,
+                    "verification_basis": "content-hash",
+                    "registered_in_this_vault": registered,
+                    "registry_note": REGISTRY_NOTE,
                     "explanation": (
-                        "The file's SHA-256 matches the sealed record exactly — "
-                        "same bytes, same address. This is the authentic document."),
+                        "The file's SHA-256 equals the claimed blob id. The hash "
+                        "IS the address — these bytes are byte-for-byte the "
+                        "document sealed under that id. This check needs no "
+                        "server storage, so it works on any server instance."),
+                    "receipt": receipt}
+        if registered:
+            receipt = self._record(
+                "verify", digest, f"AUTHENTIC: hash matches sealed record: {doc['title']}")
+            return {"ok": True, "verdict": "AUTHENTIC", "backend": BACKEND_LABEL,
+                    "computed_hash": digest, "expected_blob_id": None,
+                    "document": doc,
+                    "verification_basis": "content-hash+registry",
+                    "registered_in_this_vault": True,
+                    "registry_note": REGISTRY_NOTE,
+                    "explanation": (
+                        "The file's SHA-256 matches a sealed record in this "
+                        "vault — same bytes, same address. This is the authentic document."),
                     "receipt": receipt}
         receipt = self._record(
             "verify", digest,
             "NOT FOUND: no sealed record has this hash.")
         return {"ok": False, "verdict": "NOT FOUND", "backend": BACKEND_LABEL,
-                "computed_hash": digest, "expected_blob_id": expected,
+                "computed_hash": digest, "expected_blob_id": None,
                 "document": None,
+                "verification_basis": "content-hash",
+                "registered_in_this_vault": False,
+                "registry_note": REGISTRY_NOTE,
                 "explanation": (
-                    "No document with this hash was ever sealed in this vault. "
-                    "Either it was never sealed, or it was sealed elsewhere."),
+                    "No document with this hash is in this vault's register. "
+                    "To check it against a claimed blob id, paste that id too — "
+                    "the hash comparison then works on any server instance."),
                 "receipt": receipt}
 
     def verify_hash(self, blob_id: str) -> dict:
-        """Verify by pasted hash / blob id alone (no file)."""
+        """Verify by pasted hash / blob id alone (no file).
+
+        Registry-only lookup — a SECONDARY signal, never the verdict on
+        content. On serverless the register is per-instance/ephemeral, so
+        NOT FOUND here means "not in THIS instance's register", not "never
+        sealed anywhere": the honest check is to paste the document itself
+        (file or text) together with this blob id — see verify().
+        """
         blob_id = (blob_id or "").strip().lower()
         if not _HEX64.match(blob_id):
             raise VaultError(
@@ -350,32 +407,54 @@ class Vault:
             return {"ok": True, "verdict": "AUTHENTIC", "backend": BACKEND_LABEL,
                     "computed_hash": blob_id, "expected_blob_id": blob_id,
                     "document": doc,
-                    "explanation": "This blob id is a sealed record in the vault.",
+                    "verification_basis": "registry-only",
+                    "registered_in_this_vault": True,
+                    "registry_note": REGISTRY_NOTE,
+                    "explanation": "This blob id is a sealed record in this server instance's register.",
                     "receipt": receipt}
         receipt = self._record(
-            "verify", blob_id, "NOT FOUND (by hash): no sealed record.")
+            "verify", blob_id, "NOT FOUND (by hash): no sealed record in this instance.")
         return {"ok": False, "verdict": "NOT FOUND", "backend": BACKEND_LABEL,
                 "computed_hash": blob_id, "expected_blob_id": blob_id,
                 "document": None,
-                "explanation": "No sealed document has this blob id.",
+                "verification_basis": "registry-only",
+                "registered_in_this_vault": False,
+                "registry_note": REGISTRY_NOTE,
+                "explanation": (
+                    "No sealed document with this blob id is in this server "
+                    "instance's register. On serverless the register is "
+                    "per-instance and ephemeral, so this does NOT prove the "
+                    "document was never sealed — paste the document itself "
+                    "(file or text) together with this blob id to verify by "
+                    "its content hash, which works on any instance."),
                 "receipt": receipt}
 
-    def tamper_demo(self, blob_id: str) -> dict:
+    def tamper_demo(self, blob_id: str, data: bytes | None = None) -> dict:
         """Take a sealed doc, flip one character, prove TAMPERED.
 
-        Returns the tampered bytes (base64) plus the verify verdict.
-        The flip is real: byte 0 of the stored bytes is XORed, so the
-        recomputed hash genuinely differs.
+        The flip is real: byte 0 of the bytes is XORed, so the recomputed
+        hash genuinely differs, and the check runs through the stateless
+        verify() path (expected_blob_id=blob_id) — no server register
+        needed. ``data`` lets the caller supply the document bytes (e.g.
+        the just-sealed content); without it the bytes are read from this
+        instance's store, which always holds the 3 seeded SAMPLE docs.
         """
-        data = self.read_blob(blob_id)
         if data is None:
-            raise VaultError("No sealed document with that blob id.")
+            data = self.read_blob(blob_id)
+        if data is None:
+            raise VaultError(
+                "No sealed document with that blob id in this server instance. "
+                "Paste the document text (or pick a SAMPLE document, which is "
+                "seeded in every instance) and try again.")
         tampered = bytearray(data)
         tampered[0] ^= 0x01
         result = self.verify(bytes(tampered), expected_blob_id=blob_id)
         return {"original_blob_id": blob_id,
                 "tampered_hash": result["computed_hash"],
                 "verdict": result["verdict"],
+                "verification_basis": result["verification_basis"],
+                "registered_in_this_vault": result["registered_in_this_vault"],
+                "registry_note": result["registry_note"],
                 "explanation": result["explanation"],
                 "document": result["document"],
                 "receipt": result["receipt"],

@@ -69,14 +69,21 @@ No API keys, no database URL, no secrets of any kind.
 
 ## 5. Known limits — read before judging the deploy
 
-- **Per-instance ephemeral vault (serverless honesty note).** On Vercel each
-  serverless instance has its own `/tmp`, so seals persist only within a
-  warm instance; a cold instance starts with only the 3 seeded SAMPLE
-  documents. Seal-then-verify in one session normally hits the same warm
-  instance, but cross-instance persistence is NOT guaranteed. The verdict,
-  receipt and AUTHENTIC / TAMPERED / NOT FOUND behaviour are identical on
-  every instance. This is the same class of caveat as CageCheck's
-  per-instance audit log on Vercel.
+- **Per-instance ephemeral vault (serverless honesty note) — and the fix.**
+  On Vercel each serverless instance has its own `/tmp`, so seals and the
+  register persist only within one instance; a cold instance starts with
+  only the 3 seeded SAMPLE documents. **Verification does not depend on
+  that:** since the 10 Nov 2026 stateless fix, `verify()` compares the
+  SHA-256 of the supplied document with the claimed blob id — no server
+  storage needed — so seal-on-one-instance + verify-on-another returns
+  AUTHENTIC. Only a blob-id-alone lookup consults the per-instance
+  register, and its NOT FOUND is labelled registry-only, never proof the
+  document was never sealed. (The earlier runbook wording — "seal-then-
+  verify in one session normally hits the same warm instance" — was WRONG
+  live: an immediate verify hit a different instance and returned
+  NOT FOUND. Fixed by the stateless path, not by assuming stickiness.)
+  The audit log is still per-instance (same class of caveat as
+  CageCheck's per-instance audit log on Vercel).
 - **Walrus testnet is NOT connected.** Every receipt and API response says
   `backend: "local-vault"`; the UI badge says so too. Storing a blob needs a
   funded SUI wallet / publisher endpoint; none exists in this sandbox

@@ -141,6 +141,9 @@ class Handler(BaseHTTPRequestHandler):
                             "adapter": adapter.status(),
                             "walrus_testnet": "not connected",
                             "walrus_blocker": TESTNET_BLOCKER,
+                            "verification": {
+                                "primary": "stateless content-hash: SHA-256 of the supplied document compared with the claimed blob id — needs no server storage, works on any instance",
+                                "registry": "per-instance/ephemeral on serverless; secondary signal only"},
                             "documents": len(vault.list_docs()),
                             "max_bytes": MAX_BYTES,
                             "doc_types": list(DOC_TYPES)})
@@ -231,7 +234,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/tamper-demo":
                 payload = self._read_json()
-                result = vault.tamper_demo(payload.get("blob_id", ""))
+                text = payload.get("text", "")
+                data = text.encode("utf-8") if (text or "").strip() else None
+                result = vault.tamper_demo(payload.get("blob_id", ""), data=data)
                 self._json({"ok": True, **result})
                 return
         except VaultError as exc:

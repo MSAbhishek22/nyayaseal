@@ -14,11 +14,16 @@ The multipart parser is copied from app/server.py (same behaviour).
 
 Serverless honesty notes (also in deployment/DEPLOYMENT_RUNBOOK.md):
 - The vault lives in /tmp on Vercel: each serverless instance has its
-  own /tmp, so seals are per-instance and ephemeral — a cold instance
-  starts with only the 3 seeded SAMPLE documents. Seal-then-verify in
-  one session normally hits the same warm instance, but cross-instance
-  persistence is NOT guaranteed. The verdict, receipt, and
-  AUTHENTIC / TAMPERED / NOT FOUND behaviour are identical.
+  own /tmp, so seals and the register are per-instance and ephemeral —
+  a cold instance starts with only the 3 seeded SAMPLE documents.
+  VERIFICATION DOES NOT DEPEND ON THAT: verify() is stateless (SHA-256
+  of the supplied document compared with the claimed blob id), so
+  seal-on-one-instance + verify-on-another returns AUTHENTIC. Only a
+  blob-id-alone lookup consults the per-instance register, and its
+  NOT FOUND is labelled registry-only, never proof the doc was never
+  sealed. (Earlier wording claimed seal-then-verify "normally hits the
+  same warm instance" — that was WRONG live on 10 Nov 2026; fixed by
+  the stateless path, not by assuming instance stickiness.)
 - No credentials are needed. Backend is "local-vault" everywhere;
   Walrus testnet is still not connected (see app/walrus_adapter.py).
 """
@@ -107,6 +112,9 @@ def handle_get(path: str, query: dict):
         return 200, "application/json", _json_body({
             "ok": True, "backend": BACKEND_LABEL, "adapter": adapter.status(),
             "walrus_testnet": "not connected", "walrus_blocker": TESTNET_BLOCKER,
+            "verification": {
+                "primary": "stateless content-hash: SHA-256 of the supplied document compared with the claimed blob id — needs no server storage, works on any instance",
+                "registry": "per-instance/ephemeral on serverless; secondary signal only"},
             "documents": len(vault.list_docs()), "max_bytes": MAX_BYTES,
             "doc_types": list(DOC_TYPES)})
     if path == "/api/docs":
@@ -181,7 +189,9 @@ def handle_post(path: str, ctype: str, raw: bytes):
         return 200, "application/json", _json_body({"ok": True, **result})
     if path == "/api/tamper-demo":
         payload = json.loads(raw.decode("utf-8") or "{}")
-        result = vault.tamper_demo(payload.get("blob_id", ""))
+        text = payload.get("text", "")
+        data = text.encode("utf-8") if (text or "").strip() else None
+        result = vault.tamper_demo(payload.get("blob_id", ""), data=data)
         return 200, "application/json", _json_body({"ok": True, **result})
     return 404, "application/json", _json_body({"ok": False, "error": "Not found."})
 

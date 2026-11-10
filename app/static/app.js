@@ -6,6 +6,8 @@ const $ = id => document.getElementById(id);
 const shortHash = h => h ? h.slice(0,12) + "…" : "";
 let SELECTED = null;
 let LAST_SEAL = null; /* last seal result, for the receipt download */
+let LAST_SEAL_TEXT = null; /* pasted text of the last text-based seal (for stateless re-verify + tamper demo) */
+let LAST_SEAL_FILE = null; /* File of the last file-based seal */
 
 /* Copy helper: every hash/blob id gets a COPY button (constitution §8). */
 async function copyText(text, btn){
@@ -107,17 +109,34 @@ $("seal-btn").addEventListener("click", async () => {
     else r = await api("/api/seal", {...fields, text});
     const d = r.document;
     LAST_SEAL = r;
+    LAST_SEAL_TEXT = file ? null : text;
+    LAST_SEAL_FILE = file || null;
     out.innerHTML = `<div class="okbox"><strong>${r.duplicate ? "Already sealed — identical bytes." : "Sealed."}</strong><br>
       <strong>${esc(d.title)}</strong> · ${esc(d.doc_type)} · issuer ${esc(d.issuer)}<br>
       Blob id <span class="mono">${esc(d.blob_id)}</span>${copyBtn(d.blob_id)}<br>
       Receipt <span class="mono">${esc(r.receipt.receipt_id)}</span> · sealed ${esc(d.timestamp_utc)}</div>
-      <button class="btn secondary" id="receipt-dl" type="button">Download receipt (.json)</button>`;
+      <button class="btn secondary" id="receipt-dl" type="button">Download receipt (.json)</button>
+      <button class="btn secondary" id="verify-sealed" type="button">Verify this document now (same bytes)</button>`;
     $("receipt-dl").addEventListener("click", () => {
       const blob = new Blob([JSON.stringify(LAST_SEAL, null, 2)], {type:"application/json"});
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "nyayaseal-receipt-" + d.blob_id.slice(0,12) + ".json";
       a.click(); URL.revokeObjectURL(a.href);
+    });
+    $("verify-sealed").addEventListener("click", async () => {
+      const vout = $("verify-out");
+      document.getElementById("verify").scrollIntoView({behavior:"smooth"});
+      vout.innerHTML = "<p class='hint'>Verifying the sealed bytes against the blob id…</p>";
+      try {
+        let vr;
+        if (LAST_SEAL_FILE) vr = await postFile("/api/verify", LAST_SEAL_FILE, {expected_blob_id: d.blob_id});
+        else vr = await api("/api/verify", {text: LAST_SEAL_TEXT, expected_blob_id: d.blob_id});
+        renderVerdict(vout, vr);
+        refreshAll();
+      } catch (err) {
+        vout.innerHTML = `<div class="err"><strong>Verification failed.</strong> ${esc(err.message)}</div>`;
+      }
     });
     SELECTED = d.blob_id;
     refreshAll();
@@ -134,15 +153,18 @@ $("seal-clear").addEventListener("click", () => {
 $("verify-btn").addEventListener("click", async () => {
   const out = $("verify-out");
   const file = $("verify-file").files[0];
+  const text = $("verify-text").value;
   const hash = $("verify-hash").value.trim();
-  if (!file && !hash) {
-    out.innerHTML = `<div class="err">Nothing to verify — upload a file or paste a blob id first.</div>`;
+  if (!file && !text.trim() && !hash) {
+    out.innerHTML = `<div class="err">Nothing to verify — upload a file, paste the document text, or paste a blob id first.</div>`;
     return;
   }
   out.innerHTML = "<p class='hint'>Verifying — re-hashing and comparing…</p>";
   try {
     let r;
     if (file) r = await postFile("/api/verify", file, hash ? {expected_blob_id: hash} : {});
+    else if (text.trim() && hash) r = await api("/api/verify", {text, expected_blob_id: hash});
+    else if (text.trim()) r = await api("/api/verify", {text});
     else r = await api("/api/verify", {hash});
     renderVerdict(out, r);
     refreshAll();
@@ -151,12 +173,12 @@ $("verify-btn").addEventListener("click", async () => {
   }
 });
 $("verify-clear").addEventListener("click", () => {
-  $("verify-file").value = ""; $("verify-hash").value = "";
+  $("verify-file").value = ""; $("verify-hash").value = ""; $("verify-text").value = "";
   $("verify-file-name").textContent = "";
-  $("verify-out").innerHTML = "<p class='hint'>Cleared. Upload a file or paste a hash and press “Verify now”.</p>";
+  $("verify-out").innerHTML = "<p class='hint'>Cleared. Upload a file, paste text, or paste a hash and press “Verify now”.</p>";
 });
 function renderVerdict(out, r){
-  const cls = r.verdict === "AUTHENTIC" ? "AUTHENTIC" : "NOTFOUND";
+  const cls = r.verdict === "AUTHENTIC" ? "AUTHENTIC" : r.verdict === "TAMPERED" ? "TAMPERED" : "NOTFOUND";
   const d = r.document;
   out.innerHTML = `
     <p><span class="verdict ${cls}">${esc(r.verdict)}</span></p>
@@ -164,6 +186,9 @@ function renderVerdict(out, r){
     <p>Computed hash<br><span class="mono">${esc(r.computed_hash || "")}</span>${r.computed_hash ? copyBtn(r.computed_hash) : ""}</p>
     ${d ? `<p><strong>${esc(d.title)}</strong><br>${esc(d.doc_type)} · issuer ${esc(d.issuer)} ·
       sealed ${esc(d.timestamp_utc)}<br>Blob id <span class="mono">${esc(d.blob_id)}</span>${copyBtn(d.blob_id)}</p>` : ""}
+    ${r.registered_in_this_vault ? `<p class="hint">✓ Also registered in this session's vault.</p>` : ""}
+    ${r.verification_basis ? `<p class="hint">Check used: ${esc(r.verification_basis)}.</p>` : ""}
+    ${r.registry_note ? `<p class="hint">${esc(r.registry_note)}</p>` : ""}
     <p class="hint">Verification proves the bytes are unchanged — not that the content is legally true.
     General legal information, not legal advice.</p>
     <p class="hint">Receipt <span class="mono">${esc(r.receipt ? r.receipt.receipt_id : "")}</span> ·
@@ -177,7 +202,11 @@ $("tamper-btn").addEventListener("click", async () => {
   if (!id) { out.innerHTML = `<div class="err">Pick a sealed document first.</div>`; return; }
   out.innerHTML = "<p class='hint'>Flipping one character and re-checking…</p>";
   try {
-    const r = await api("/api/tamper-demo", {blob_id: id});
+    const body = {blob_id: id};
+    if (LAST_SEAL && LAST_SEAL.document && LAST_SEAL.document.blob_id === id && LAST_SEAL_TEXT) {
+      body.text = LAST_SEAL_TEXT; /* stateless path: works even if the seal happened on another instance */
+    }
+    const r = await api("/api/tamper-demo", body);
     out.innerHTML = `<div class="warnbox"><strong class="verdict TAMPERED">TAMPERED</strong><br>
       ${esc(r.explanation)}<br>
       Original blob id <span class="mono">${esc(r.original_blob_id)}</span><br>

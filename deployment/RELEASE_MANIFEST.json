@@ -1,1 +1,37 @@
-{"backend_api_url":null,"build_deployment_id":null,"database_migration_version":null,"deployed_commit_sha":null,"deployment_blocker":"No live deployment yet. Vercel adaptation (api/index.py) is written and verified locally (14/14 WSGI harness checks, 17/17 unit tests), but the deploy itself needs the user's signed-in Vercel browser session: import repo MSAbhishek22/nyayaseal and deploy on Vercel Hobby (free, no card). See deployment/DEPLOYMENT_RUNBOOK.md §2.","deployment_provider":"Vercel (planned, NOT deployed)","deployment_timestamp_ist":null,"deployment_timestamp_utc":null,"github_repository_url":"https://github.com/MSAbhishek22/nyayaseal","latest_repo_commit_sha":null,"notes":["Deployed commit SHA, production URL, build ID, and timestamps are null because no deployment exists.","Repo MSAbhishek22/nyayaseal does NOT exist yet (search_repositories total_count 0, checked 10 Nov 2026). The GitHub App cannot create repos (403, known); create it in the user's GitHub browser session, empty, no README init — see runbook §6.","Vercel serverless caveat: vault lives in /tmp, per-instance and ephemeral; a cold instance starts with only the 3 seeded SAMPLE documents. Seal-then-verify in one session normally hits the same warm instance. Behaviour (AUTHENTIC / TAMPERED / NOT FOUND) is identical.","Walrus testnet NOT connected: backend is local-vault everywhere; no Walrus blob id is ever faked."],"production_branch":"main","production_url":null,"project":"NyayaSeal","release_status":"IN_PROGRESS","release_version":null,"smoke_test":{"local_only_evidence":{"date":"2026-11-10","environment":"Linux sandbox, Python 3.12","local_server":"http://127.0.0.1:8902 (app/server.py)","note":"Local evidence only. This is NOT a production smoke test and must not be presented as one.","unit_tests":"17/17 PASS (python3 -m unittest discover -s tests)","vercel_wsgi_harness":"14/14 PASS (/tmp/nyayaseal-wsgi-test.py against api/index.py: home, static CSS, status, seal JSON, verify AUTHENTIC by text and by hash, tamper-demo TAMPERED, unknown hash NOT FOUND, audit chain OK, multipart seal + verify, empty seal 400, rewritten /api/index path, docs list)"},"production_smoke_test":null,"production_smoke_test_timestamp":null}}
+{
+  "backend_api_url": null,
+  "build_deployment_id": null,
+  "database_migration_version": null,
+  "deployed_commit_sha": null,
+  "deployment_blocker": "Live deployment exists (https://nyayaseal.vercel.app, snapshot 1) but its seal-then-verify flow FAILED live (NOT FOUND cross-instance). Stateless fix is snapshot 2 — live re-check must pass before Gate E is PASS.",
+  "deployment_provider": "Vercel Hobby (deployed; snapshot 1 commit 1a7eb05b)",
+  "deployment_timestamp_ist": null,
+  "deployment_timestamp_utc": null,
+  "github_repository_url": "https://github.com/MSAbhishek22/nyayaseal",
+  "latest_repo_commit_sha": "1a7eb05ba5333d5b7675e0d62b9d0131e083905b",
+  "notes": [
+    "Repo MSAbhishek22/nyayaseal created 10 Nov 2026 via browser (empty, public); snapshot 1 pushed, head 1a7eb05ba5333d5b7675e0d62b9d0131e083905b, verified via list_commits.",
+    "LIVE BUG found 10 Nov ~11:04 IST: seal-then-verify returned NOT FOUND on the live site — per-instance /tmp register; the \"same warm instance\" assumption was WRONG.",
+    "STATELESS FIX (snapshot 2, 10 Nov 2026): verify() compares SHA-256 of supplied content vs claimed blob id — no server storage needed; register is a secondary signal only (verification_basis / registered_in_this_vault / registry_note on every verdict); verify_hash() labelled registry-only; tamper_demo() accepts supplied bytes. Unit tests 24/24 PASS (7 new cross-instance), WSGI harness 14/14 PASS, fresh-instance WSGI simulation correct.",
+    "deployed_commit_sha is still the snapshot-1 SHA until snapshot 2 is pushed and Vercel auto-deploys; live re-check (home 200, seal, same-content verify AUTHENTIC, tampered TAMPERED, unknown hash NOT FOUND, chain OK) must pass before Gate E is PASS.",
+    "Vercel serverless caveat: vault/register/audit are per-instance and ephemeral; a cold instance starts with only the 3 seeded SAMPLE documents. Verification no longer depends on that.",
+    "Walrus testnet NOT connected: backend is local-vault everywhere; no Walrus blob id is ever faked."
+  ],
+  "production_branch": "main",
+  "production_url": "https://nyayaseal.vercel.app",
+  "project": "NyayaSeal",
+  "release_status": "IN_PROGRESS",
+  "release_version": null,
+  "smoke_test": {
+    "local_only_evidence": {
+      "date": "2026-11-10",
+      "environment": "Linux sandbox, Python 3.12",
+      "local_server": "http://127.0.0.1:8902 (app/server.py)",
+      "note": "Local evidence only. This is NOT a production smoke test and must not be presented as one.",
+      "unit_tests": "24/24 PASS (python3 -m unittest discover -s tests) — 17 + 7 new stateless cross-instance tests",
+      "vercel_wsgi_harness": "14/14 PASS (/tmp/nyayaseal-wsgi-test.py against api/index.py) + fresh-instance simulation (data dir wiped between seal and verify): AUTHENTIC / TAMPERED / NOT FOUND correct"
+    },
+    "production_smoke_test": null,
+    "production_smoke_test_timestamp": null
+  }
+}

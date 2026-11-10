@@ -184,5 +184,79 @@ class VaultTestCase(unittest.TestCase):
             adapter.read_blob("0" * 64)
 
 
+class StatelessVerifyTestCase(unittest.TestCase):
+    """Regression tests for the live Vercel bug (10 Nov 2026): seal on one
+    serverless instance, verify on another — the per-instance register
+    must never decide the verdict. A second Vault in a different temp
+    dir simulates the other instance."""
+
+    def _two_vaults(self):
+        d1 = tempfile.TemporaryDirectory()
+        d2 = tempfile.TemporaryDirectory()
+        self.addCleanup(d1.cleanup)
+        self.addCleanup(d2.cleanup)
+        return Vault(d1.name), Vault(d2.name)
+
+    def test_authentic_across_instances_without_registry(self):
+        a, b = self._two_vaults()
+        data = b"Cross-instance contract: Acme pays Abhishek INR 50,000."
+        sealed = a.seal(data, title="X", doc_type="Contract", issuer="Acme")
+        blob_id = sealed["document"]["blob_id"]
+        result = b.verify(data, expected_blob_id=blob_id)
+        self.assertEqual(result["verdict"], "AUTHENTIC")
+        self.assertEqual(result["verification_basis"], "content-hash")
+        self.assertFalse(result["registered_in_this_vault"])
+        self.assertIsNone(result["document"])
+        self.assertIn("per-instance", result["registry_note"])
+
+    def test_tampered_across_instances(self):
+        a, b = self._two_vaults()
+        data = bytearray(b"Settlement: A pays B INR 10,000 on 1 Dec 2026.")
+        sealed = a.seal(bytes(data), title="X",
+                        doc_type="Settlement Deed", issuer="A")
+        tampered = bytearray(data)
+        tampered[5] ^= 0x01
+        result = b.verify(bytes(tampered),
+                          expected_blob_id=sealed["document"]["blob_id"])
+        self.assertEqual(result["verdict"], "TAMPERED")
+        self.assertEqual(result["verification_basis"], "content-hash")
+
+    def test_verify_content_no_expected_unknown_not_found(self):
+        _, b = self._two_vaults()
+        result = b.verify(b"never sealed anywhere at all")
+        self.assertEqual(result["verdict"], "NOT FOUND")
+        self.assertEqual(result["verification_basis"], "content-hash")
+
+    def test_verify_hash_unknown_not_found_honest_note(self):
+        _, b = self._two_vaults()
+        result = b.verify_hash("0" * 64)
+        self.assertEqual(result["verdict"], "NOT FOUND")
+        self.assertEqual(result["verification_basis"], "registry-only")
+        self.assertIn("does NOT prove", result["explanation"])
+        self.assertIn("paste the document itself", result["explanation"])
+
+    def test_tamper_demo_with_supplied_content_across_instances(self):
+        a, b = self._two_vaults()
+        data = b"Notice: pay within 15 days or face action."
+        sealed = a.seal(data, title="N", doc_type="Legal Notice", issuer="X")
+        demo = b.tamper_demo(sealed["document"]["blob_id"], data=data)
+        self.assertEqual(demo["verdict"], "TAMPERED")
+        self.assertNotEqual(demo["tampered_hash"], sealed["document"]["blob_id"])
+        self.assertEqual(demo["verification_basis"], "content-hash")
+
+    def test_tamper_demo_missing_doc_without_content_raises(self):
+        _, b = self._two_vaults()
+        with self.assertRaises(VaultError):
+            b.tamper_demo("0" * 64)
+
+    def test_verify_hash_known_in_registry_basis(self):
+        a, _ = self._two_vaults()
+        sealed = a.seal(b"known doc", title="K", doc_type="Other", issuer="X")
+        result = a.verify_hash(sealed["document"]["blob_id"])
+        self.assertEqual(result["verdict"], "AUTHENTIC")
+        self.assertEqual(result["verification_basis"], "registry-only")
+        self.assertTrue(result["registered_in_this_vault"])
+
+
 if __name__ == "__main__":
     unittest.main()

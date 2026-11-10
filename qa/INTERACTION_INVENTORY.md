@@ -108,6 +108,38 @@ reason and the nearest verified evidence are stated in the row.
 - Dropzones and vault cards are `tabindex="0"` with `role="button"`; vault cards carry full `aria-label`s; verdict/detail outputs use `aria-live="polite"`.
 - One gap: vault ←/→ selection missing (row D7, FAIL, low severity).
 
+## J. Stateless-verify fix — live bug, fixed 10 Nov 2026 (appendix, not a re-run of the full inventory)
+
+**The bug (verified live ~11:04 IST):** `https://nyayaseal.vercel.app` was Ready,
+home loaded, but seal → verify-by-blob-id returned NOT FOUND — the vault lives
+in per-instance `/tmp` and the seal's instance was not the verify's instance.
+The manifest/runbook assumption ("seal-then-verify normally hits the same warm
+instance") was WRONG live, even for an immediate verify.
+
+**The fix (code only, no new service/card/account):** `verify()` is now stateless
+— SHA-256 of the supplied document vs the claimed blob id; the register is only
+a secondary signal (`verification_basis`, `registered_in_this_vault`,
+`registry_note` on every verdict). `verify_hash()` (blob id alone) stays a
+registry-only lookup, now labelled as such with an honest explanation.
+`tamper_demo()` accepts supplied document bytes so it works through the same
+stateless path. UI: new `#verify-text` textarea, new "Verify this document now
+(same bytes)" button after a seal, verdict rendering shows the basis + registry
+note. No "Walrus testnet connected" claim anywhere; backend stays `local-vault`.
+
+| # | Control | Change | Evidence | Status |
+|---|---|---|---|---|
+| J1 | Verify textarea `#verify-text` (new) | Paste document text to check, with or without a blob id | Unit tests (stateless class) + WSGI harness; `node --check app.js` OK; field present in `index.html` | PASS (API + code-verified; no headless-Chrome re-run in this session) |
+| J2 | `Verify now` `#verify-btn` — text + hash path | `text + expected_blob_id` → stateless AUTHENTIC on ANY instance; text alone → AUTHENTIC if in this register else NOT FOUND; hash alone → registry-only verdict with honest note | 7 new unit tests incl. cross-instance AUTHENTIC with `registered_in_this_vault: False`; WSGI fresh-instance simulation (data dir wiped between seal and verify): AUTHENTIC / TAMPERED / NOT FOUND all correct | PASS |
+| J3 | `Verify this document now (same bytes)` `#verify-sealed` (new) | Re-submits the just-sealed file/text with its blob id | Code-verified in `app.js`; same API path as J2 (unit + WSGI) | PASS (API + code-verified; no headless-Chrome re-run in this session) |
+| J4 | Verdict rendering `renderVerdict()` | Shows `verification_basis`, `registry_note`, "Also registered in this session's vault" when true; TAMPERED gets its own stamp class (was NOTFOUND class) | Code-verified in `app.js`; fields present in live API responses (verified via WSGI simulation) | PASS |
+| J5 | Tamper demo `#tamper-btn` — supplied-text path | Sends the just-sealed text with the blob id when available, so the demo works cross-instance | Unit test `test_tamper_demo_with_supplied_content_across_instances` PASS; WSGI fresh-instance tamper demo with text → TAMPERED | PASS |
+| J6 | `GET /api/status` — `verification` field (new) | Documents the primary (stateless content-hash) + registry (secondary) split | WSGI simulation: field present with both strings | PASS |
+
+**Counts after this fix: 48 controls — 42 PASS · 1 FAIL (D7, pre-existing) · 5 BLOCKED
+(observation limits, unchanged).** The 2 new controls (J1, J3) are PASS on API +
+code evidence; a full headless-Chrome re-run was not done in this fix session —
+the live curl re-check after deploy is the authoritative UI proof (see runbook §3).
+
 ## I. Known issues found during inventory (detail in `QA_REPORT.md`)
 
 - **I-1** (low–medium): no `scroll-margin-top` — anchor jumps land section headings under the sticky nav (seen in `vault-1280.png`: `03 THE VAULT` half-hidden).
