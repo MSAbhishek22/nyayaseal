@@ -1,6 +1,12 @@
 # NyayaLedger for Walrus — "NyayaSeal"
 
-**Walrus Haulout Hackathon · Truth Engine + Trust Oracle track · $105,000 · closes Mon 23 Nov 2026 · solo · online**
+**GenHacks entry (Devpost, submitted 12 Nov 2026) · solo · online**
+Live: **https://nyayaseal.vercel.app** · Repo: https://github.com/MSAbhishek22/nyayaseal ·
+Demo video: https://www.youtube.com/watch?v=p7f7yZwR_QI
+
+(Originally built towards the Walrus Haulout "Truth Engine + Trust Oracle" theme — that
+event turned out to be the ended 2025 edition, so the Walrus testnet store was never
+connected; see "What is stubbed / BLOCKED". The sealing engine is storage-agnostic.)
 
 A legal document you can prove is real — sealed by its own content hash, verified in one click.
 The hash of a document *is* its address: change one character and the address changes, so a
@@ -29,13 +35,14 @@ Verified locally with a WSGI harness — 14/14 PASS
 AUTHENTIC, tamper-demo TAMPERED, unknown NOT FOUND, audit chain,
 multipart, error paths). Full steps + serverless honesty note (vault is
 per-instance ephemeral on Vercel) in `deployment/DEPLOYMENT_RUNBOOK.md`.
-Live URL: **not deployed yet** — needs the signed-in Vercel session.
+Live URL: **https://nyayaseal.vercel.app** — deployed on Vercel and verified
+13 Nov 2026 (home 200, `GET /api/status` ok, backend `local-vault`).
 
 ## Tests
 
 ```bash
 python3 -m unittest discover -s tests -v
-# 16 tests, all passing (verified 10 Nov 2026)
+# 24 tests, all passing (re-verified 13 Nov 2026)
 ```
 
 Covers: SHA-256 known vector (`abc`), seal → verify round-trip AUTHENTIC, tampered bytes →
@@ -82,8 +89,9 @@ Probed from this sandbox, 10 Nov 2026 (~5 min, read-only, no secrets, no account
   in both backends.
 
 Also **not** claimed: Daml / Canton integration (Day-1 NyayaLedger lineage only — the ledger
-pattern and grounded-citation idea were reused, the code is fresh); no deploy, no repo, no
-video, no submission (out of scope for this build task).
+pattern and grounded-citation idea were reused, the code is fresh). Deployment, public repo,
+demo video and the GenHacks submission all exist (links at the top) — the one thing that does
+**not** exist is a Walrus testnet connection.
 
 ## Architecture
 
@@ -97,7 +105,7 @@ app/
     style.css         Neo-Brutalism per design/DESIGN_CONSTITUTION.md; restyle via :root vars
     app.js            fetch API, drop zones, 3D vault rotation, copy/receipt/?blob=
 tests/
-  test_vault.py       16 stdlib-unittest tests (no pytest in this sandbox)
+  test_vault.py       24 stdlib-unittest tests (no pytest in this sandbox)
 data/                 created at runtime (gitignored): blobs/<sha256>, register.json, audit.jsonl
 design/               DESIGN_CONSTITUTION.md + PROJECT_DESIGN_REGISTRY.md (design researcher)
 ```
